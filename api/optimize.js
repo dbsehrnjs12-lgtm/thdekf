@@ -31,8 +31,13 @@ export default async function handler(req, res) {
     const { action, payload } = req.body || {};
 
     if (action === 'jskey') {
-      // 지도 표시용 App Key 제공 (REST 호출용과 동일 키 사용)
-      res.status(200).json({ appKey });
+      // 지도 표시용 카카오 JavaScript 키 제공
+      const kakaoKey = process.env.KAKAO_JS_KEY;
+      if (!kakaoKey) {
+        res.status(500).json({ error: '서버에 KAKAO_JS_KEY 환경변수가 설정되어 있지 않습니다.' });
+        return;
+      }
+      res.status(200).json({ kakaoJsKey: kakaoKey });
       return;
     }
 
