@@ -178,7 +178,7 @@
 
   .route-item {
     display: grid;
-    grid-template-columns: 32px 1fr auto;
+    grid-template-columns: 32px 1fr auto auto;
     gap: 12px;
     align-items: center;
     padding: 10px 8px;
@@ -186,6 +186,22 @@
     font-size: 13px;
   }
   .route-item:last-child { border-bottom: none; }
+
+  .map-link-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: #fcfbf8;
+    color: var(--green);
+    text-decoration: none;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .map-link-btn:hover { border-color: var(--green); background: #eef3ed; }
 
   .seq {
     width: 28px; height: 28px; border-radius: 50%;
@@ -381,7 +397,7 @@
         </div>
         <div class="toggle-row">
           <input type="checkbox" id="roundTrip" checked>
-          <label for="roundTrip">출발지로 복귀하는 경로로 계산(왕복)</label>
+          <label for="roundTrip">출발지로 복귀하는 경로(왕복)로 계산</label>
         </div>
       </div>
 
@@ -406,7 +422,7 @@
     <div>
       <div class="panel" style="padding:8px;">
         <div id="mapEmpty" class="map-empty">
-          출발지와 주소를 입력하고<br>"경로 계산하기"를 누르면 지도가 표시됩니다
+          출발지와 배달 주소를 입력하고<br>"경로 계산하기"를 누르면 지도가 표시됩니다
         </div>
         <div id="map" style="display:none;"></div>
       </div>
@@ -426,6 +442,7 @@
   <footer>
     NOTE — 이동거리·시간은 TMAP 실제 도로 데이터(일방통행, 도로 통제 등 반영) 기준.<br>
     NOTE — 순서는 TMAP 경유지 최적화 API가 산출한 결과로, 차량 기준.<br>
+    NOTE — 각 정류점의 📍 버튼을 누르면 네이버지도에서 해당 위치를 열 수 있습니다 (모바일에서는 앱으로 바로 연결).
     <br>
     <br>
     2026.06.14. 윤도권 제작
@@ -775,13 +792,32 @@
         legEl.textContent = `이전 구간 ${(stop.distanceFromPrev / 1000).toFixed(1)}km`;
       }
 
+      const mapLink = document.createElement('a');
+      mapLink.className = 'map-link-btn';
+      mapLink.href = buildNaverMapUrl(stop.lat, stop.lng, meta.roadAddress || meta.address || stop.name);
+      mapLink.target = '_blank';
+      mapLink.rel = 'noopener';
+      mapLink.title = '네이버지도에서 보기';
+      mapLink.textContent = '📍';
+
       li.appendChild(seqEl);
       li.appendChild(addrEl);
       li.appendChild(legEl);
+      li.appendChild(mapLink);
       routeList.appendChild(li);
     });
 
     lastResult = { stops, addressMap };
+  }
+
+  // 네이버지도 위치 링크 생성 (모바일: 앱으로 바로 연결, PC/미설치: 웹 지도)
+  function buildNaverMapUrl(lat, lng, name) {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const encodedName = encodeURIComponent(name || '목적지');
+    if (isMobile) {
+      return `nmap://place?lat=${lat}&lng=${lng}&name=${encodedName}&appname=com.deliveryroute.app`;
+    }
+    return `https://map.naver.com/p/search/${encodedName}?c=${lng},${lat},15,0,0,0,dh`;
   }
 
   function downloadCsv() {
