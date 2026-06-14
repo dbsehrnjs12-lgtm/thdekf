@@ -253,21 +253,27 @@ async function searchPoi(appKey, keyword) {
 
   return {
     results: list.map((p) => {
-      // 도로명 주소: 시/도 + 구/군 + 도로명 + 건물번호 (구성요소가 모두 있을 때만)
+      // 도로명 주소: 시/도 + 구/군 + 도로명 + 도로명주소 건물번호 (firstBuildNo/secondBuildNo)
+      // 주의: firstNo/secondNo는 "지번" 번호이며 도로명 건물번호와 다름. 혼용하면 잘못된 주소가 됨.
       let roadAddress = '';
-      if (p.roadName && p.firstNo) {
-        const buildingNo = p.secondNo && p.secondNo !== '0'
-          ? `${p.firstNo}-${p.secondNo}`
-          : p.firstNo;
+      if (p.roadName && p.firstBuildNo) {
+        const buildingNo = p.secondBuildNo && p.secondBuildNo !== '0'
+          ? `${p.firstBuildNo}-${p.secondBuildNo}`
+          : p.firstBuildNo;
         roadAddress = [p.upperAddrName, p.middleAddrName, p.roadName, buildingNo]
           .filter(Boolean)
           .join(' ');
       }
 
-      // 지번 주소: 시/도 + 구/군 + 동/읍/면 + 지번(번지) - 도로명이 없을 때만 사용
-      const jibunParts = [p.upperAddrName, p.middleAddrName, p.lowerAddrName, p.detailAddrName]
-        .filter(Boolean);
-      const jibunAddress = jibunParts.join(' ');
+      // 지번 주소: 시/도 + 구/군 + 동/읍/면 + 지번(firstNo-secondNo)
+      let jibunAddress = '';
+      const jibunHead = [p.upperAddrName, p.middleAddrName, p.lowerAddrName].filter(Boolean).join(' ');
+      if (p.firstNo) {
+        const jibunNo = p.secondNo && p.secondNo !== '0' ? `${p.firstNo}-${p.secondNo}` : p.firstNo;
+        jibunAddress = [jibunHead, jibunNo].filter(Boolean).join(' ');
+      } else {
+        jibunAddress = jibunHead;
+      }
 
       const displayAddress = roadAddress || jibunAddress;
 
@@ -284,14 +290,11 @@ async function searchPoi(appKey, keyword) {
           upperAddrName: p.upperAddrName,
           middleAddrName: p.middleAddrName,
           lowerAddrName: p.lowerAddrName,
-          detailAddrName: p.detailAddrName,
           roadName: p.roadName,
           firstNo: p.firstNo,
           secondNo: p.secondNo,
-          rpFlag: p.rpFlag,
-          bldNo1: p.bldNo1,
-          bldNo2: p.bldNo2,
-          newAddressList: p.newAddressList
+          firstBuildNo: p.firstBuildNo,
+          secondBuildNo: p.secondBuildNo
         }
       };
     }).filter(p => !isNaN(p.lat) && !isNaN(p.lng))
