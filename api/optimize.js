@@ -236,17 +236,23 @@ async function searchPoi(appKey, keyword) {
     throw new Error(`장소 검색 실패 (${resp.status}): ${text.slice(0, 200)}`);
   }
 
-  const data = await resp.json();
+  const rawText = await resp.text();
+  if (!rawText || !rawText.trim()) {
+    return { results: [] };
+  }
+
+  let data;
+  try {
+    data = JSON.parse(rawText);
+  } catch (e) {
+    return { results: [] };
+  }
+
   const pois = data?.searchPoiInfo?.pois?.poi || [];
   const list = Array.isArray(pois) ? pois : [pois];
 
   return {
     results: list.map((p) => {
-      // 지번 주소: 시/도 + 구/군 + 동/읍/면 + 지번(번지)
-      const jibunParts = [p.upperAddrName, p.middleAddrName, p.lowerAddrName, p.detailAddrName]
-        .filter(Boolean);
-      const jibunAddress = jibunParts.join(' ');
-
       // 도로명 주소: 시/도 + 구/군 + 도로명 + 건물번호 (구성요소가 모두 있을 때만)
       let roadAddress = '';
       if (p.roadName && p.firstNo) {
@@ -258,10 +264,17 @@ async function searchPoi(appKey, keyword) {
           .join(' ');
       }
 
+      // 지번 주소: 시/도 + 구/군 + 동/읍/면 + 지번(번지) - 도로명이 없을 때만 사용
+      const jibunParts = [p.upperAddrName, p.middleAddrName, p.lowerAddrName, p.detailAddrName]
+        .filter(Boolean);
+      const jibunAddress = jibunParts.join(' ');
+
+      const displayAddress = roadAddress || jibunAddress;
+
       return {
-        name: p.name || jibunAddress || roadAddress,
-        // 검색 결과 카드에 보여줄 부주소: 도로명 주소가 있으면 우선, 없으면 지번 주소
-        address: roadAddress || jibunAddress,
+        name: p.name || displayAddress,
+        // 검색 결과 카드에는 도로명 주소만 표시 (없으면 지번 주소로 대체)
+        address: displayAddress,
         jibunAddress,
         roadAddress,
         lat: parseFloat(p.noorLat || p.frontLat || p.lat),
