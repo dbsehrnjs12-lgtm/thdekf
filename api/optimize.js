@@ -241,13 +241,32 @@ async function searchPoi(appKey, keyword) {
   const list = Array.isArray(pois) ? pois : [pois];
 
   return {
-    results: list.map((p) => ({
-      name: p.name || '',
-      address: [p.upperAddrName, p.middleAddrName, p.lowerAddrName, p.roadName, p.firstNo]
-        .filter(Boolean)
-        .join(' '),
-      lat: parseFloat(p.noorLat || p.frontLat || p.lat),
-      lng: parseFloat(p.noorLon || p.frontLon || p.lon)
-    })).filter(p => !isNaN(p.lat) && !isNaN(p.lng))
+    results: list.map((p) => {
+      // 지번 주소: 시/도 + 구/군 + 동/읍/면 + 지번(번지)
+      const jibunParts = [p.upperAddrName, p.middleAddrName, p.lowerAddrName, p.detailAddrName]
+        .filter(Boolean);
+      const jibunAddress = jibunParts.join(' ');
+
+      // 도로명 주소: 시/도 + 구/군 + 도로명 + 건물번호 (구성요소가 모두 있을 때만)
+      let roadAddress = '';
+      if (p.roadName && p.firstNo) {
+        const buildingNo = p.secondNo && p.secondNo !== '0'
+          ? `${p.firstNo}-${p.secondNo}`
+          : p.firstNo;
+        roadAddress = [p.upperAddrName, p.middleAddrName, p.roadName, buildingNo]
+          .filter(Boolean)
+          .join(' ');
+      }
+
+      return {
+        name: p.name || jibunAddress || roadAddress,
+        // 검색 결과 카드에 보여줄 부주소: 도로명 주소가 있으면 우선, 없으면 지번 주소
+        address: roadAddress || jibunAddress,
+        jibunAddress,
+        roadAddress,
+        lat: parseFloat(p.noorLat || p.frontLat || p.lat),
+        lng: parseFloat(p.noorLon || p.frontLon || p.lon)
+      };
+    }).filter(p => !isNaN(p.lat) && !isNaN(p.lng))
   };
 }
