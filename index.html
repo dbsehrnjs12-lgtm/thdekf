@@ -453,65 +453,38 @@
 
   let mapInstance = null;
   let lastResult = null;
-  let tmapSdkPromise = null;
+  let kakaoSdkPromise = null;
 
   // 확정된 출발지 / 배달지 목록 (모두 좌표 포함)
   let startPlace = null; // { name, address, lat, lng }
   const deliveryPlaces = []; // [{ name, address, lat, lng }]
 
-  function loadTmapSdk() {
-    if (tmapSdkPromise) return tmapSdkPromise;
-    tmapSdkPromise = fetch('/api/optimize', {
+  // 카카오맵 SDK 동적 로딩 (지도 표시용. App Key는 서버에서 받아옴)
+  function loadKakaoSdk() {
+    if (kakaoSdkPromise) return kakaoSdkPromise;
+    kakaoSdkPromise = fetch('/api/optimize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'jskey' })
     })
       .then(r => r.json())
       .then(data => {
-        if (!data.appKey) throw new Error('지도 키를 불러오지 못했습니다.');
+        if (!data.kakaoJsKey) throw new Error(data.error || '지도 키를 불러오지 못했습니다.');
         return new Promise((resolve, reject) => {
-          // TMAP SDK가 내부적으로 document.write를 호출하는데,
-          // 동적으로 추가된 스크립트에서는 document가 이미 닫혀있어 실패함.
-          // document.write/writeln을 임시로 무력화(noop)해서 충돌을 방지.
-          const originalWrite = document.write;
-          const originalWriteln = document.writeln;
-          document.write = function () {};
-          document.writeln = function () {};
-
           const script = document.createElement('script');
-          script.src = `https://apis.openapi.sk.com/tmap/jsv2?version=1&appKey=${encodeURIComponent(data.appKey)}`;
+          script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(data.kakaoJsKey)}&autoload=false`;
           script.onload = () => {
-            // TMAP SDK는 메인 스크립트 로드 후 내부적으로 추가 리소스를 비동기로 로드할 수 있어,
-            // onload 시점에 Tmapv2가 아직 준비되지 않았을 수 있음. 짧은 간격으로 재확인.
-            const maxAttempts = 50; // 50 x 100ms = 최대 5초 대기
-            let attempts = 0;
-            const check = () => {
-              if (window.Tmapv2 && window.Tmapv2.LatLng && window.Tmapv2.Map) {
-                document.write = originalWrite;
-                document.writeln = originalWriteln;
-                resolve();
-                return;
-              }
-              attempts++;
-              if (attempts >= maxAttempts) {
-                document.write = originalWrite;
-                document.writeln = originalWriteln;
-                reject(new Error('TMAP 지도 SDK가 로드되었지만 초기화에 실패했습니다.'));
-                return;
-              }
-              setTimeout(check, 100);
-            };
-            check();
+            if (window.kakao && window.kakao.maps) {
+              window.kakao.maps.load(() => resolve());
+            } else {
+              reject(new Error('카카오맵 SDK 초기화에 실패했습니다.'));
+            }
           };
-          script.onerror = () => {
-            document.write = originalWrite;
-            document.writeln = originalWriteln;
-            reject(new Error('TMAP 지도 SDK 로드 실패'));
-          };
+          script.onerror = () => reject(new Error('카카오맵 SDK 로드에 실패했습니다. 도메인 등록을 확인해주세요.'));
           document.head.appendChild(script);
         });
       });
-    return tmapSdkPromise;
+    return kakaoSdkPromise;
   }
 
   function setStatus(msg, type) {
@@ -682,7 +655,7 @@
   updateRunButtonState();
 
   function renderMap(start, end, stops) {
-    if (!window.Tmapv2 || !window.Tmapv2.LatLng) {
+    if (!window.kakao || !window.kakao.maps || !window.kakao.maps.LatLng) {
       // 지도 SDK를 사용할 수 없는 경우 지도는 건너뛰고 결과 목록만 표시
       mapEmpty.style.display = 'flex';
       mapEmpty.innerHTML = '지도를 표시할 수 없습니다.<br>아래 방문 순서 목록을 확인해주세요.';
@@ -693,42 +666,53 @@
     mapEmpty.style.display = 'none';
     mapDiv.style.display = 'block';
 
-    const { Tmapv2 } = window;
-    mapInstance = new Tmapv2.Map(mapDiv, {
-      center: new Tmapv2.LatLng(start.lat, start.lng),
-      width: '100%',
-      height: '520px',
-      zoom: 13
+    const { kakao } = window;
+    mapInstance = new kakao.maps.Map(mapDiv, {
+      center: new kakao.maps.LatLng(start.lat, start.lng),
+      level: 6
     });
 
-    const bounds = new Tmapv2.LatLngBounds();
+    const bounds = new kakao.maps.LatLngBounds();
     const path = [];
 
     stops.forEach((stop) => {
-      const pos = new Tmapv2.LatLng(stop.lat, stop.lng);
+      const pos = new kakao.maps.LatLng(stop.lat, stop.lng);
       bounds.extend(pos);
       path.push(pos);
 
+      const isStart = stop.pointType === 'S';
+      const isEnd = stop.pointType === 'E';
       let label = String(stop.seq);
-      if (stop.pointType === 'S') label = 'S(출발)';
-      if (stop.pointType === 'E') label = 'E(도착)';
+      if (isStart) label = 'S';
+      if (isEnd) label = 'E';
 
-      new Tmapv2.Marker({
+      const content = document.createElement('div');
+      content.style.cssText = `
+        width: 26px; height: 26px; border-radius: 50%;
+        background: ${isStart || isEnd ? '#ff5a36' : '#1b1f1c'};
+        color: #f2efe7; display:flex; align-items:center; justify-content:center;
+        font-family: 'JetBrains Mono', monospace; font-weight:700; font-size:11px;
+        border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      `;
+      content.textContent = label;
+
+      const overlay = new kakao.maps.CustomOverlay({
         position: pos,
-        map: mapInstance,
-        label: label,
-        labelOffset: { x: 0, y: -10 }
+        content,
+        yAnchor: 0.5
       });
+      overlay.setMap(mapInstance);
     });
 
     if (path.length > 1) {
-      new Tmapv2.Polyline({
+      const polyline = new kakao.maps.Polyline({
         path,
-        strokeColor: '#ff5a36',
         strokeWeight: 4,
+        strokeColor: '#ff5a36',
         strokeOpacity: 0.8,
-        map: mapInstance
+        strokeStyle: 'solid'
       });
+      polyline.setMap(mapInstance);
     }
 
     mapInstance.setBounds(bounds);
@@ -862,10 +846,10 @@
     setStatus('지도를 불러오는 중...', 'warn');
 
     try {
-      await loadTmapSdk();
+      await loadKakaoSdk();
     } catch (e) {
       // 지도 SDK 로드에 실패해도 경로 계산 자체는 진행 (지도만 생략)
-      console.warn('TMAP 지도 SDK 로드 실패:', e.message);
+      console.warn('카카오맵 SDK 로드 실패:', e.message);
     }
 
     const start = startPlace;
