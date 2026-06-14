@@ -583,7 +583,8 @@
             const mainLine = poi.address || poi.name;
             const showName = poi.name && poi.name !== poi.address && poi.address;
             btn.innerHTML = `<div class="name">${escapeHtml(mainLine)}</div>` +
-              (showName ? `<div class="addr">${escapeHtml(poi.name)}</div>` : '');
+              (showName ? `<div class="addr">${escapeHtml(poi.name)}</div>` : '') +
+              (poi._raw ? `<div class="addr" style="opacity:0.6;">RAW: ${escapeHtml(JSON.stringify(poi._raw))}</div>` : '');
             btn.addEventListener('click', () => {
               resultsDiv.classList.remove('open');
               resultsDiv.innerHTML = '';
