@@ -579,8 +579,11 @@
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'addr-result-item';
-            btn.innerHTML = `<div class="name">${escapeHtml(poi.name || poi.address)}</div>` +
-              (poi.address ? `<div class="addr">${escapeHtml(poi.address)}</div>` : '');
+            // 주소(도로명 우선)를 메인으로 표시. 장소명이 주소와 다르고 의미가 있을 때만 보조로 표시.
+            const mainLine = poi.address || poi.name;
+            const showName = poi.name && poi.name !== poi.address && poi.address;
+            btn.innerHTML = `<div class="name">${escapeHtml(mainLine)}</div>` +
+              (showName ? `<div class="addr">${escapeHtml(poi.name)}</div>` : '');
             btn.addEventListener('click', () => {
               resultsDiv.classList.remove('open');
               resultsDiv.innerHTML = '';
@@ -630,8 +633,8 @@
     startConfirmed.style.display = 'flex';
     startConfirmed.innerHTML = `
       <div class="info">
-        <div class="name">${escapeHtml(startPlace.name)}</div>
-        ${startPlace.address && startPlace.address !== startPlace.name ? `<div class="addr">${escapeHtml(startPlace.address)}</div>` : ''}
+        <div class="name">${escapeHtml(startPlace.address || startPlace.name)}</div>
+        ${startPlace.name && startPlace.name !== startPlace.address && startPlace.address ? `<div class="addr">${escapeHtml(startPlace.name)}</div>` : ''}
       </div>
       <button type="button" class="clear-btn" title="다시 선택">✕</button>
     `;
@@ -658,8 +661,8 @@
       li.innerHTML = `
         <div class="info">
           <span class="seq">${idx + 1}</span>
-          <span class="name">${escapeHtml(place.name)}</span>
-          ${place.address && place.address !== place.name ? `<div class="addr">${escapeHtml(place.address)}</div>` : ''}
+          <span class="name">${escapeHtml(place.address || place.name)}</span>
+          ${place.name && place.name !== place.address && place.address ? `<div class="addr">${escapeHtml(place.name)}</div>` : ''}
         </div>
         <button type="button" class="remove-btn" title="삭제">✕</button>
       `;
