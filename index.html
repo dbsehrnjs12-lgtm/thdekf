@@ -481,13 +481,27 @@
           const script = document.createElement('script');
           script.src = `https://apis.openapi.sk.com/tmap/jsv2?version=1&appKey=${encodeURIComponent(data.appKey)}`;
           script.onload = () => {
-            document.write = originalWrite;
-            document.writeln = originalWriteln;
-            if (window.Tmapv2 && window.Tmapv2.LatLng) {
-              resolve();
-            } else {
-              reject(new Error('TMAP 지도 SDK가 로드되었지만 초기화에 실패했습니다.'));
-            }
+            // TMAP SDK는 메인 스크립트 로드 후 내부적으로 추가 리소스를 비동기로 로드할 수 있어,
+            // onload 시점에 Tmapv2가 아직 준비되지 않았을 수 있음. 짧은 간격으로 재확인.
+            const maxAttempts = 50; // 50 x 100ms = 최대 5초 대기
+            let attempts = 0;
+            const check = () => {
+              if (window.Tmapv2 && window.Tmapv2.LatLng && window.Tmapv2.Map) {
+                document.write = originalWrite;
+                document.writeln = originalWriteln;
+                resolve();
+                return;
+              }
+              attempts++;
+              if (attempts >= maxAttempts) {
+                document.write = originalWrite;
+                document.writeln = originalWriteln;
+                reject(new Error('TMAP 지도 SDK가 로드되었지만 초기화에 실패했습니다.'));
+                return;
+              }
+              setTimeout(check, 100);
+            };
+            check();
           };
           script.onerror = () => {
             document.write = originalWrite;
@@ -574,6 +588,8 @@
               onSelect({
                 name: poi.name || poi.address,
                 address: poi.address || poi.name,
+                jibunAddress: poi.jibunAddress || '',
+                roadAddress: poi.roadAddress || '',
                 lat: poi.lat,
                 lng: poi.lng
               });
