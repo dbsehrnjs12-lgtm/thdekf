@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>배달 경로 최적화</title>
+<style>
+  :root {
+    --ink: #1b1f1c;
+    --paper: #f2efe7;
+    --line: #d8d2c4;
+    --accent: #ff5a36;
+    --green: #2f5d3a;
+    --mono: 'JetBrains Mono', 'Courier New', monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  .wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 28px 24px 60px;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 3px solid var(--ink);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  header .title-block { display: flex; flex-direction: column; gap: 4px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+
+  .stop-count {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 8px 14px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .layout { display: grid; grid-template-columns: 380px 1fr; gap: 20px; }
+  @media (max-width: 920px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px;
+  }
+  .panel + .panel { margin-top: 16px; }
+
+  .panel h2 {
+    font-size: 13px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 12px;
+    color: #6b6557;
+  }
+
+  label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: #4a463c; }
+  .hint { font-size: 11px; color: #8a8474; margin-top: 4px; line-height: 1.5; }
+
+  input[type="text"] {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    font-size: 13px;
+    font-family: var(--mono);
+    background: #fcfbf8;
+    color: var(--ink);
+  }
+
+  input:focus, textarea:focus, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  textarea {
+    width: 100%;
+    height: 220px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 11px;
+    font-size: 13px;
+    font-family: var(--mono);
+    line-height: 1.7;
+    resize: vertical;
+    background: #fcfbf8;
+    color: var(--ink);
+  }
+
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+
+  button.primary {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 13px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: filter 0.15s ease;
+  }
+  button.primary:hover { filter: brightness(0.93); }
+  button.primary:disabled { background: #c9c3b4; cursor: not-allowed; }
+
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--ink);
+    font-family: var(--sans);
+  }
+  button.secondary:hover { border-color: var(--ink); }
+
+  #map {
+    width: 100%;
+    height: 520px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #e7e2d4;
+  }
+
+  .map-empty {
+    height: 520px;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    color: #a39c8a;
+    font-family: var(--mono);
+    font-size: 13px;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .route-list { list-style: none; margin-top: 14px; }
+
+  .route-item {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .route-item:last-child { border-bottom: none; }
+
+  .seq {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--ink); color: var(--paper);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-weight: 700; font-size: 12px;
+    flex-shrink: 0;
+  }
+  .seq.start, .seq.end { background: var(--accent); }
+
+  .route-addr { line-height: 1.4; }
+  .route-addr .raw { font-size: 11px; color: #a39c8a; margin-top: 2px; }
+
+  .route-leg {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #8a8474;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .summary-bar {
+    display: flex; gap: 22px; flex-wrap: wrap;
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line);
+  }
+  .summary-stat .num { font-family: var(--mono); font-size: 22px; font-weight: 700; }
+  .summary-stat .lbl { font-size: 11px; color: #8a8474; margin-top: 2px; }
+
+  .status {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 12px;
+    border-radius: 5px;
+    margin-top: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+  .status.error { background: #fde6e0; color: #b3361b; border: 1px solid #f6bcab; }
+  .status.warn { background: #fff4dc; color: #8a5a00; border: 1px solid #f0d9a0; }
+  .status.info { background: #eef3ed; color: var(--green); border: 1px solid #cfe0d3; }
+
+  .actions-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+  .toggle-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .toggle-row input { width: auto; }
+  .toggle-row label { margin-bottom: 0; }
+
+  .review-item {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  .review-item:last-child { margin-bottom: 0; }
+  .review-item .original {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .review-item .original .tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    padding: 1px 5px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .poi-results { display: flex; flex-direction: column; gap: 6px; }
+  .poi-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: #fcfbf8;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 8px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--sans);
+    color: var(--ink);
+  }
+  .poi-option:hover { border-color: var(--accent); }
+  .poi-option.selected {
+    border-color: var(--green);
+    background: #eef3ed;
+  }
+  .poi-option .poi-name { font-weight: 700; }
+  .poi-option .poi-addr { color: #8a8474; font-size: 11px; margin-top: 2px; }
+  .poi-loading, .poi-empty {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #8a8474;
+    padding: 6px 0;
+  }
+  .skip-row {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .skip-row input { width: auto; }
+  .skip-row label { margin-bottom: 0; font-size: 11px; color: #8a8474; }
+
+  footer {
+    margin-top: 28px;
+    font-size: 11px;
+    color: #a39c8a;
+    font-family: var(--mono);
+    line-height: 1.7;
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title-block">
+      <span class="eyebrow">Route Optimizer · TMAP</span>
+      <h1>배달 경로 최적화</h1>
+    </div>
+    <div class="stop-count" id="stopCount">0 STOPS LOADED</div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: INPUT -->
+    <div>
+      <div class="panel">
+        <h2>01 — 출발지</h2>
+        <div class="field">
+          <label for="startAddr">출발지 주소</label>
+          <input type="text" id="startAddr" placeholder="예: 서울 성북구 월곡로 23">
+        </div>
+        <div class="toggle-row">
+          <input type="checkbox" id="roundTrip" checked>
+          <label for="roundTrip">출발지로 복귀하는 경로(왕복)로 계산</label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>02 — 배달 주소 목록</h2>
+        <div class="field">
+          <label for="addrList">한 줄에 하나씩 입력 (최대 98개)</label>
+          <textarea id="addrList" placeholder="서울 성북구 월곡동 123-45
+서울 성북구 장위동 456-7
+서울 성북구 석관동 78-9
+..."></textarea>
+          <div class="hint">번지, 도로명, 건물명 모두 가능. 줄바꿈으로 구분됩니다.</div>
+        </div>
+        <button class="primary" id="runBtn">경로 계산하기</button>
+        <div id="status"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: MAP + RESULTS -->
+    <div>
+      <div class="panel" style="padding:8px;">
+        <div id="mapEmpty" class="map-empty">
+          출발지와 배달 주소를 입력하고<br>"경로 계산하기"를 누르면 지도가 표시됩니다
+        </div>
+        <div id="map" style="display:none;"></div>
+      </div>
+
+      <div class="panel" id="reviewPanel" style="display:none;">
+        <h2>02.5 — 주소 확인 필요</h2>
+        <div class="hint" style="margin-bottom: 12px;">
+          아래 주소들은 자동으로 좌표를 찾지 못했습니다. 검색 결과에서 맞는 주소를 선택해주세요.
+          선택하지 않으면 해당 주소는 경로에서 제외됩니다.
+        </div>
+        <div id="reviewList"></div>
+        <button class="primary" id="continueBtn" style="margin-top: 12px;">선택 완료 후 경로 계산</button>
+      </div>
+
+      <div class="panel" id="resultPanel" style="display:none;">
+        <h2>03 — 추천 방문 순서 (실제 도로 기준)</h2>
+        <div class="summary-bar" id="summaryBar"></div>
+        <ul class="route-list" id="routeList"></ul>
+        <div class="actions-row">
+          <button class="secondary" id="downloadCsv">CSV로 다운로드</button>
+          <button class="secondary" id="copyOrder">순서 텍스트 복사</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    NOTE — 이동거리·시간은 TMAP 실제 도로 데이터(일방통행, 도로 통제 등 반영) 기준입니다.<br>
+    NOTE — 방문 순서는 TMAP 경유지 최적화 API가 산출한 결과로, 차량 기준 경로입니다.<br>
+    NOTE — 지오코딩에 실패한 주소는 목록에서 별도로 표시되며 경로 계산에서 제외됩니다.<br>
+    NOTE — 경유지 98개 초과 시 앞 98개만 사용됩니다.
+  </footer>
+</div>
+
+<script>
+(function () {
+  const startAddrInput = document.getElementById('startAddr');
+  const addrListInput = document.getElementById('addrList');
+  const roundTripInput = document.getElementById('roundTrip');
+  const runBtn = document.getElementById('runBtn');
+  const statusEl = document.getElementById('status');
+  const stopCountEl = document.getElementById('stopCount');
+  const mapEmpty = document.getElementById('mapEmpty');
+  const mapDiv = document.getElementById('map');
+  const resultPanel = document.getElementById('resultPanel');
+  const summaryBar = document.getElementById('summaryBar');
+  const routeList = document.getElementById('routeList');
+  const downloadCsvBtn = document.getElementById('downloadCsv');
+  const copyOrderBtn = document.getElementById('copyOrder');
+  const reviewPanel = document.getElementById('reviewPanel');
+  const reviewList = document.getElementById('reviewList');
+  const continueBtn = document.getElementById('continueBtn');
+
+  let mapInstance = null;
+  let lastResult = null;
+  let tmapSdkPromise = null;
+
+  function loadTmapSdk() {
+    if (tmapSdkPromise) return tmapSdkPromise;
+    tmapSdkPromise = fetch('/api/optimize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'jskey' })
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.appKey) throw new Error('지도 키를 불러오지 못했습니다.');
+        return new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = `https://apis.openapi.sk.com/tmap/jsv2?version=1&appKey=${encodeURIComponent(data.appKey)}`;
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('TMAP 지도 SDK 로드 실패'));
+          document.head.appendChild(script);
+        });
+      });
+    return tmapSdkPromise;
+  }
+
+  function setStatus(msg, type) {
+    if (!msg) { statusEl.innerHTML = ''; return; }
+    statusEl.innerHTML = `<div class="status ${type}">${msg}</div>`;
+  }
+
+  function updateStopCount() {
+    const n = addrListInput.value.split('\n').map(s => s.trim()).filter(Boolean).length;
+    stopCountEl.textContent = `${n} STOPS LOADED`;
+  }
+  addrListInput.addEventListener('input', updateStopCount);
+  updateStopCount();
+
+  async function callApi(action, payload) {
+    const resp = await fetch('/api/optimize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, payload })
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      throw new Error(data.error || `요청 실패 (${resp.status})`);
+    }
+    return data;
+  }
+
+  async function geocodeAll(addresses, onProgress) {
+    const results = [];
+    const failed = [];
+    for (let i = 0; i < addresses.length; i++) {
+      const addr = addresses[i];
+      try {
+        const r = await callApi('geocode', { address: addr });
+        if (r.found) {
+          results.push(r);
+        } else {
+          failed.push(addr);
+        }
+      } catch (e) {
+        failed.push(addr);
+      }
+      if (onProgress) onProgress(i + 1, addresses.length);
+    }
+    return { results, failed };
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function renderMap(start, end, stops) {
+    mapEmpty.style.display = 'none';
+    mapDiv.style.display = 'block';
+
+    const { Tmapv2 } = window;
+    mapInstance = new Tmapv2.Map(mapDiv, {
+      center: new Tmapv2.LatLng(start.lat, start.lng),
+      width: '100%',
+      height: '520px',
+      zoom: 13
+    });
+
+    const bounds = new Tmapv2.LatLngBounds();
+    const path = [];
+
+    stops.forEach((stop) => {
+      const pos = new Tmapv2.LatLng(stop.lat, stop.lng);
+      bounds.extend(pos);
+      path.push(pos);
+
+      let label = String(stop.seq);
+      if (stop.pointType === 'S') label = 'S(출발)';
+      if (stop.pointType === 'E') label = 'E(도착)';
+
+      new Tmapv2.Marker({
+        position: pos,
+        map: mapInstance,
+        label: label,
+        labelOffset: { x: 0, y: -10 }
+      });
+    });
+
+    if (path.length > 1) {
+      new Tmapv2.Polyline({
+        path,
+        strokeColor: '#ff5a36',
+        strokeWeight: 4,
+        strokeOpacity: 0.8,
+        map: mapInstance
+      });
+    }
+
+    mapInstance.setBounds(bounds);
+  }
+
+  function formatTime(seconds) {
+    const m = Math.round(seconds / 60);
+    if (m < 60) return `${m}분`;
+    const h = Math.floor(m / 60);
+    const rm = m % 60;
+    return `${h}시간 ${rm}분`;
+  }
+
+  function renderResults(routeData, addressMap) {
+    resultPanel.style.display = 'block';
+
+    const stops = routeData.stops.map((s, idx) => ({
+      ...s,
+      seq: idx === 0 ? 'S' : (s.pointType === 'E' ? 'E' : idx)
+    }));
+
+    summaryBar.innerHTML = `
+      <div class="summary-stat">
+        <div class="num">${stops.length}</div>
+        <div class="lbl">방문 지점 (출발/도착 포함)</div>
+      </div>
+      <div class="summary-stat">
+        <div class="num">${(routeData.totalDistanceMeters / 1000).toFixed(1)} km</div>
+        <div class="lbl">총 도로 이동거리</div>
+      </div>
+      <div class="summary-stat">
+        <div class="num">${formatTime(routeData.totalTimeSeconds)}</div>
+        <div class="lbl">예상 총 소요시간</div>
+      </div>
+    `;
+
+    routeList.innerHTML = '';
+    stops.forEach((stop, idx) => {
+      const li = document.createElement('li');
+      li.className = 'route-item';
+
+      const seqEl = document.createElement('div');
+      seqEl.className = 'seq' + (stop.pointType === 'S' ? ' start' : stop.pointType === 'E' ? ' end' : '');
+      seqEl.textContent = stop.seq;
+
+      const meta = addressMap[idx] || {};
+      const addrEl = document.createElement('div');
+      addrEl.className = 'route-addr';
+      let label = '';
+      if (stop.pointType === 'S') label = '출발: ';
+      if (stop.pointType === 'E') label = '도착(복귀): ';
+      addrEl.innerHTML = `<div>${label}${escapeHtml(meta.roadAddress || meta.address || stop.name)}</div>` +
+        (meta.address && meta.roadAddress && meta.roadAddress !== meta.address
+          ? `<div class="raw">입력값: ${escapeHtml(meta.address)}</div>` : '');
+
+      const legEl = document.createElement('div');
+      legEl.className = 'route-leg';
+      if (idx > 0) {
+        legEl.textContent = `이전 구간 ${(stop.distanceFromPrev / 1000).toFixed(1)}km`;
+      }
+
+      li.appendChild(seqEl);
+      li.appendChild(addrEl);
+      li.appendChild(legEl);
+      routeList.appendChild(li);
+    });
+
+    lastResult = { stops, addressMap };
+  }
+
+  function downloadCsv() {
+    if (!lastResult) return;
+    const { stops, addressMap } = lastResult;
+    let csv = '순서,주소,입력주소,위도,경도,이전구간거리(km)\n';
+    stops.forEach((stop, idx) => {
+      const meta = addressMap[idx] || {};
+      const label = stop.pointType === 'S' ? '출발' : stop.pointType === 'E' ? '도착' : stop.seq;
+      const leg = idx > 0 ? (stop.distanceFromPrev / 1000).toFixed(2) : '';
+      const addr = meta.roadAddress || meta.address || stop.name;
+      const raw = meta.address || '';
+      csv += `${label},"${addr.replace(/"/g, '""')}","${raw.replace(/"/g, '""')}",${stop.lat},${stop.lng},${leg}\n`;
+    });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'delivery_route.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function copyOrderText() {
+    if (!lastResult) return;
+    const { stops, addressMap } = lastResult;
+    const lines = stops.map((stop, idx) => {
+      const meta = addressMap[idx] || {};
+      const label = stop.pointType === 'S' ? '출발' : stop.pointType === 'E' ? '도착' : `${stop.seq}`;
+      return `${label}. ${meta.roadAddress || meta.address || stop.name}`;
+    });
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setStatus('순서가 클립보드에 복사되었습니다.', 'info');
+    }).catch(() => {
+      setStatus('복사에 실패했습니다. 브라우저 권한을 확인해주세요.', 'error');
+    });
+  }
+
+  downloadCsvBtn.addEventListener('click', downloadCsv);
+  copyOrderBtn.addEventListener('click', copyOrderText);
+
+  let pendingState = null; // { startAddr, viaAddrs, roundTrip, geo, reviewItems }
+
+  runBtn.addEventListener('click', async () => {
+    const startAddr = startAddrInput.value.trim();
+    const addrLines = addrListInput.value.split('\n').map(s => s.trim()).filter(Boolean);
+    const roundTrip = roundTripInput.checked;
+
+    if (!startAddr) {
+      setStatus('출발지 주소를 입력해주세요.', 'error');
+      return;
+    }
+    if (addrLines.length === 0) {
+      setStatus('배달 주소를 한 줄에 하나씩 입력해주세요.', 'error');
+      return;
+    }
+
+    let viaAddrs = addrLines;
+    if (viaAddrs.length > 98) {
+      viaAddrs = viaAddrs.slice(0, 98);
+      setStatus(`주소가 98개를 초과하여 앞 98개만 사용합니다.`, 'warn');
+    }
+
+    runBtn.disabled = true;
+    reviewPanel.style.display = 'none';
+    resultPanel.style.display = 'none';
+    setStatus('지도를 불러오는 중...', 'warn');
+
+    try {
+      await loadTmapSdk();
+    } catch (e) {
+      setStatus(e.message, 'error');
+      runBtn.disabled = false;
+      return;
+    }
+
+    setStatus('주소를 좌표로 변환하는 중... (0 / ' + (viaAddrs.length + 1) + ')', 'warn');
+
+    const allAddresses = [startAddr, ...viaAddrs];
+    let geo;
+    try {
+      geo = await geocodeAll(allAddresses, (done, total) => {
+        setStatus(`주소를 좌표로 변환하는 중... (${done} / ${total})`, 'warn');
+      });
+    } catch (e) {
+      setStatus('지오코딩 중 오류: ' + e.message, 'error');
+      runBtn.disabled = false;
+      return;
+    }
+
+    if (geo.failed.includes(startAddr)) {
+      setStatus('출발지 주소의 좌표를 찾을 수 없습니다. 직접 다른 주소로 다시 시도해주세요.', 'error');
+      runBtn.disabled = false;
+      return;
+    }
+
+    if (geo.failed.length > 0) {
+      // 실패한 주소들을 검색-선택 패널로 보여줌
+      pendingState = { startAddr, viaAddrs, roundTrip, geo };
+      await showReviewPanel(geo.failed);
+      setStatus(`${geo.failed.length}개 주소의 좌표를 찾지 못했습니다. 아래에서 검색 후 선택해주세요.`, 'warn');
+      runBtn.disabled = false;
+      return;
+    }
+
+    await proceedWithRoute(startAddr, roundTrip, geo, []);
+    runBtn.disabled = false;
+  });
+
+  // 지오코딩 실패 주소들에 대한 검색/선택 UI 표시
+  async function showReviewPanel(failedAddresses) {
+    reviewPanel.style.display = 'block';
+    reviewList.innerHTML = '';
+
+    failedAddresses.forEach((addr) => {
+      const item = document.createElement('div');
+      item.className = 'review-item';
+      item.dataset.address = addr;
+
+      const original = document.createElement('div');
+      original.className = 'original';
+      original.innerHTML = `<span class="tag">확인필요</span>${escapeHtml(addr)}`;
+      item.appendChild(original);
+
+      const resultsDiv = document.createElement('div');
+      resultsDiv.className = 'poi-results';
+      resultsDiv.innerHTML = '<div class="poi-loading">검색 중...</div>';
+      item.appendChild(resultsDiv);
+
+      const skipRow = document.createElement('div');
+      skipRow.className = 'skip-row';
+      const skipCheckbox = document.createElement('input');
+      skipCheckbox.type = 'checkbox';
+      skipCheckbox.id = `skip-${btoa(encodeURIComponent(addr)).replace(/[^a-zA-Z0-9]/g, '')}`;
+      const skipLabel = document.createElement('label');
+      skipLabel.htmlFor = skipCheckbox.id;
+      skipLabel.textContent = '이 주소는 제외하고 진행';
+      skipCheckbox.addEventListener('change', () => {
+        if (skipCheckbox.checked) {
+          delete item.dataset.selectedLat;
+          delete item.dataset.selectedLng;
+          resultsDiv.querySelectorAll('.poi-option').forEach(b => b.classList.remove('selected'));
+        }
+      });
+      skipRow.appendChild(skipCheckbox);
+      skipRow.appendChild(skipLabel);
+      item.appendChild(skipRow);
+      item.skipCheckbox = skipCheckbox;
+
+      reviewList.appendChild(item);
+
+      // 검색 실행
+      callApi('searchPoi', { keyword: addr }).then((data) => {
+        resultsDiv.innerHTML = '';
+        if (!data.results || data.results.length === 0) {
+          resultsDiv.innerHTML = '<div class="poi-empty">검색 결과가 없습니다. "제외하고 진행"을 선택하거나 입력 주소를 수정해주세요.</div>';
+          return;
+        }
+        data.results.forEach((poi) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'poi-option';
+          btn.innerHTML = `<div class="poi-name">${escapeHtml(poi.name || poi.address)}</div>` +
+            (poi.address ? `<div class="poi-addr">${escapeHtml(poi.address)}</div>` : '');
+          btn.addEventListener('click', () => {
+            resultsDiv.querySelectorAll('.poi-option').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            item.dataset.selectedLat = poi.lat;
+            item.dataset.selectedLng = poi.lng;
+            item.dataset.selectedAddr = poi.address || poi.name;
+            item.skipCheckbox.checked = false;
+          });
+          resultsDiv.appendChild(btn);
+        });
+      }).catch(() => {
+        resultsDiv.innerHTML = '<div class="poi-empty">검색 중 오류가 발생했습니다. "제외하고 진행"을 선택해주세요.</div>';
+      });
+    });
+  }
+
+  continueBtn.addEventListener('click', async () => {
+    if (!pendingState) return;
+
+    const resolved = [];
+    const stillMissing = [];
+
+    reviewList.querySelectorAll('.review-item').forEach((item) => {
+      const addr = item.dataset.address;
+      if (item.dataset.selectedLat && item.dataset.selectedLng) {
+        resolved.push({
+          found: true,
+          address: addr,
+          lat: parseFloat(item.dataset.selectedLat),
+          lng: parseFloat(item.dataset.selectedLng),
+          roadAddress: item.dataset.selectedAddr || addr
+        });
+      } else if (!item.skipCheckbox.checked) {
+        stillMissing.push(addr);
+      }
+    });
+
+    if (stillMissing.length > 0) {
+      setStatus(`아직 ${stillMissing.length}개 주소가 선택되지 않았습니다. 후보를 선택하거나 "제외하고 진행"을 체크해주세요.`, 'warn');
+      return;
+    }
+
+    continueBtn.disabled = true;
+    reviewPanel.style.display = 'none';
+
+    const { startAddr, roundTrip, geo } = pendingState;
+    const skippedAddrs = geo.failed.filter(a => !resolved.find(r => r.address === a));
+
+    await proceedWithRoute(startAddr, roundTrip, geo, resolved, skippedAddrs);
+
+    continueBtn.disabled = false;
+    pendingState = null;
+  });
+
+  // 좌표 변환이 완료된 결과로 경로 최적화 진행
+  async function proceedWithRoute(startAddr, roundTrip, geo, resolvedExtra, skippedAddrs) {
+    skippedAddrs = skippedAddrs || [];
+    const allResults = [...geo.results, ...resolvedExtra];
+
+    // 출발지를 항상 첫번째로 정렬
+    const startIdx = allResults.findIndex(r => r.address === startAddr);
+    const start = allResults[startIdx];
+    const vias = allResults.filter((_, i) => i !== startIdx);
+
+    if (!start) {
+      setStatus('출발지 좌표를 확인할 수 없습니다.', 'error');
+      return;
+    }
+    if (vias.length === 0) {
+      setStatus('경로를 계산할 배달 주소가 없습니다.', 'error');
+      return;
+    }
+
+    const end = roundTrip ? start : vias[vias.length - 1];
+    const viaForOptimize = roundTrip ? vias : vias.slice(0, -1);
+
+    setStatus('TMAP 경로 최적화 계산 중...', 'warn');
+
+    let routeData;
+    try {
+      routeData = await callApi('optimize', {
+        start: { lat: start.lat, lng: start.lng, name: '출발' },
+        end: { lat: end.lat, lng: end.lng, name: roundTrip ? '복귀' : '도착' },
+        viaPoints: viaForOptimize.map(v => ({ lat: v.lat, lng: v.lng, name: v.roadAddress || v.address }))
+      });
+    } catch (e) {
+      setStatus('경로 최적화 중 오류: ' + e.message, 'error');
+      return;
+    }
+
+    const addressMap = buildAddressMap(routeData.stops, start, end, viaForOptimize, roundTrip);
+
+    renderMap(start, end, routeData.stops.map((s, i) => ({ ...s, seq: i })));
+    renderResults(routeData, addressMap);
+
+    if (skippedAddrs.length > 0) {
+      setStatus(`경로 계산이 완료되었습니다. 제외된 주소 ${skippedAddrs.length}개: ${skippedAddrs.join(', ')}`, 'warn');
+    } else {
+      setStatus('경로 계산이 완료되었습니다.', 'info');
+    }
+  }
+
+
+  // TMAP 응답의 viaPointName(원래 입력한 name)을 이용해 geocode 결과와 매칭
+  function buildAddressMap(stops, start, end, viaList, roundTrip) {
+    const byName = {};
+    viaList.forEach(v => {
+      const key = (v.roadAddress || v.address);
+      byName[key] = v;
+    });
+
+    return stops.map(s => {
+      if (s.pointType === 'S') return start;
+      if (s.pointType === 'E') return roundTrip ? start : end;
+      // s.name은 viaPointName (예: "서울 성북구 ...")
+      return byName[s.name] || { address: s.name, roadAddress: s.name, lat: s.lat, lng: s.lng };
+    });
+  }
+})();
+</script>
+</body>
+</html>

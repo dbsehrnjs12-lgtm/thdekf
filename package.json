@@ -1,0 +1,6 @@
+{
+  "name": "delivery-route-optimizer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TMAP API 기반 배달 경로 최적화 웹앱"
+}
