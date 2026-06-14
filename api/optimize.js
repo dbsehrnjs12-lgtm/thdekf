@@ -278,7 +278,21 @@ async function searchPoi(appKey, keyword) {
         jibunAddress,
         roadAddress,
         lat: parseFloat(p.noorLat || p.frontLat || p.lat),
-        lng: parseFloat(p.noorLon || p.frontLon || p.lon)
+        lng: parseFloat(p.noorLon || p.frontLon || p.lon),
+        _raw: {
+          name: p.name,
+          upperAddrName: p.upperAddrName,
+          middleAddrName: p.middleAddrName,
+          lowerAddrName: p.lowerAddrName,
+          detailAddrName: p.detailAddrName,
+          roadName: p.roadName,
+          firstNo: p.firstNo,
+          secondNo: p.secondNo,
+          rpFlag: p.rpFlag,
+          bldNo1: p.bldNo1,
+          bldNo2: p.bldNo2,
+          newAddressList: p.newAddressList
+        }
       };
     }).filter(p => !isNaN(p.lat) && !isNaN(p.lng))
   };
