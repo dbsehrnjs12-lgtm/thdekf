@@ -417,10 +417,30 @@
       .then(data => {
         if (!data.appKey) throw new Error('지도 키를 불러오지 못했습니다.');
         return new Promise((resolve, reject) => {
+          // TMAP SDK가 내부적으로 document.write를 호출하는데,
+          // 동적으로 추가된 스크립트에서는 document가 이미 닫혀있어 실패함.
+          // document.write/writeln을 임시로 무력화(noop)해서 충돌을 방지.
+          const originalWrite = document.write;
+          const originalWriteln = document.writeln;
+          document.write = function () {};
+          document.writeln = function () {};
+
           const script = document.createElement('script');
           script.src = `https://apis.openapi.sk.com/tmap/jsv2?version=1&appKey=${encodeURIComponent(data.appKey)}`;
-          script.onload = resolve;
-          script.onerror = () => reject(new Error('TMAP 지도 SDK 로드 실패'));
+          script.onload = () => {
+            document.write = originalWrite;
+            document.writeln = originalWriteln;
+            if (window.Tmapv2 && window.Tmapv2.LatLng) {
+              resolve();
+            } else {
+              reject(new Error('TMAP 지도 SDK가 로드되었지만 초기화에 실패했습니다.'));
+            }
+          };
+          script.onerror = () => {
+            document.write = originalWrite;
+            document.writeln = originalWriteln;
+            reject(new Error('TMAP 지도 SDK 로드 실패'));
+          };
           document.head.appendChild(script);
         });
       });
@@ -479,6 +499,14 @@
   }
 
   function renderMap(start, end, stops) {
+    if (!window.Tmapv2 || !window.Tmapv2.LatLng) {
+      // 지도 SDK를 사용할 수 없는 경우 지도는 건너뛰고 결과 목록만 표시
+      mapEmpty.style.display = 'flex';
+      mapEmpty.innerHTML = '지도를 표시할 수 없습니다.<br>아래 방문 순서 목록을 확인해주세요.';
+      mapDiv.style.display = 'none';
+      return;
+    }
+
     mapEmpty.style.display = 'none';
     mapDiv.style.display = 'block';
 
@@ -659,9 +687,8 @@
     try {
       await loadTmapSdk();
     } catch (e) {
-      setStatus(e.message, 'error');
-      runBtn.disabled = false;
-      return;
+      // 지도 SDK 로드에 실패해도 경로 계산 자체는 진행 (지도만 생략)
+      console.warn('TMAP 지도 SDK 로드 실패:', e.message);
     }
 
     setStatus('주소를 좌표로 변환하는 중... (0 / ' + (viaAddrs.length + 1) + ')', 'warn');
