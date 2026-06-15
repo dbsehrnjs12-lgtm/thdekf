@@ -744,6 +744,17 @@
     return `${h}시간 ${rm}분`;
   }
 
+  // 구간별 이동시간 표시용 (1분 미만은 "1분 미만"으로 표시)
+  function formatLegTime(seconds) {
+    if (seconds === null || seconds === undefined) return null;
+    const m = Math.round(seconds / 60);
+    if (m < 1) return '1분 미만';
+    if (m < 60) return `${m}분`;
+    const h = Math.floor(m / 60);
+    const rm = m % 60;
+    return rm > 0 ? `${h}시간 ${rm}분` : `${h}시간`;
+  }
+
   function renderResults(routeData, addressMap) {
     resultPanel.style.display = 'block';
 
@@ -789,7 +800,11 @@
       const legEl = document.createElement('div');
       legEl.className = 'route-leg';
       if (idx > 0) {
-        legEl.textContent = `이전 구간 ${(stop.distanceFromPrev / 1000).toFixed(1)}km`;
+        const km = (stop.distanceFromPrev / 1000).toFixed(1);
+        const timeLabel = formatLegTime(stop.timeFromPrevSeconds);
+        legEl.textContent = timeLabel
+          ? `이동구간 ${km}km / ${timeLabel}`
+          : `이동구간 ${km}km`;
       }
 
       const mapLink = document.createElement('a');
@@ -823,14 +838,17 @@
   function downloadCsv() {
     if (!lastResult) return;
     const { stops, addressMap } = lastResult;
-    let csv = '순서,주소,입력주소,위도,경도,이전구간거리(km)\n';
+    let csv = '순서,주소,입력주소,위도,경도,이동구간거리(km),이동구간시간(분)\n';
     stops.forEach((stop, idx) => {
       const meta = addressMap[idx] || {};
       const label = stop.pointType === 'S' ? '출발' : stop.pointType === 'E' ? '도착' : stop.seq;
-      const leg = idx > 0 ? (stop.distanceFromPrev / 1000).toFixed(2) : '';
+      const legKm = idx > 0 ? (stop.distanceFromPrev / 1000).toFixed(2) : '';
+      const legMin = idx > 0 && stop.timeFromPrevSeconds !== null && stop.timeFromPrevSeconds !== undefined
+        ? Math.round(stop.timeFromPrevSeconds / 60)
+        : '';
       const addr = meta.roadAddress || meta.address || stop.name;
       const raw = meta.address || '';
-      csv += `${label},"${addr.replace(/"/g, '""')}","${raw.replace(/"/g, '""')}",${stop.lat},${stop.lng},${leg}\n`;
+      csv += `${label},"${addr.replace(/"/g, '""')}","${raw.replace(/"/g, '""')}",${stop.lat},${stop.lng},${legKm},${legMin}\n`;
     });
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
