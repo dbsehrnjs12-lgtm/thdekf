@@ -212,11 +212,33 @@ function parseOptimizeResponse(data) {
 
   stops.sort((a, b) => a.index - b.index);
 
+  // 이전 정류점과의 시간 차이(초) 계산 - arriveTime은 ISO 8601 형식 문자열
+  for (let i = 0; i < stops.length; i++) {
+    if (i === 0) {
+      stops[i].timeFromPrevSeconds = 0;
+      continue;
+    }
+    const prevTime = parseArriveTime(stops[i - 1].arriveTime);
+    const currTime = parseArriveTime(stops[i].arriveTime);
+    if (prevTime !== null && currTime !== null) {
+      stops[i].timeFromPrevSeconds = Math.max(0, Math.round((currTime - prevTime) / 1000));
+    } else {
+      stops[i].timeFromPrevSeconds = null;
+    }
+  }
+
   return {
     totalDistanceMeters: parseInt(props.totalDistance || '0', 10),
     totalTimeSeconds: parseInt(props.totalTime || '0', 10),
     stops
   };
+}
+
+// arriveTime 문자열을 epoch ms로 변환 (형식이 다양할 수 있어 안전하게 처리)
+function parseArriveTime(value) {
+  if (!value) return null;
+  const t = new Date(value).getTime();
+  return isNaN(t) ? null : t;
 }
 
 // 키워드 기반 장소(POI) 검색 - 지오코딩 실패 주소를 사용자가 직접 선택하도록 후보 제공
