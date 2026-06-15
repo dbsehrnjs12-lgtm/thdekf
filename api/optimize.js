@@ -212,7 +212,8 @@ function parseOptimizeResponse(data) {
 
   stops.sort((a, b) => a.index - b.index);
 
-  // 이전 정류점과의 시간 차이(초) 계산 - arriveTime은 ISO 8601 형식 문자열
+  // 이전 정류점과의 시간 차이(초) 계산 - arriveTime은 ISO 8601 또는 YYYYMMDDHHmmss 형식
+  let anyParsed = false;
   for (let i = 0; i < stops.length; i++) {
     if (i === 0) {
       stops[i].timeFromPrevSeconds = 0;
@@ -222,21 +223,46 @@ function parseOptimizeResponse(data) {
     const currTime = parseArriveTime(stops[i].arriveTime);
     if (prevTime !== null && currTime !== null) {
       stops[i].timeFromPrevSeconds = Math.max(0, Math.round((currTime - prevTime) / 1000));
+      anyParsed = true;
     } else {
       stops[i].timeFromPrevSeconds = null;
     }
   }
 
+  // arriveTime을 전혀 파싱하지 못한 경우, 총 이동시간을 구간별 거리 비례로 추정
+  const totalDistanceMeters = parseInt(props.totalDistance || '0', 10);
+  const totalTimeSeconds = parseInt(props.totalTime || '0', 10);
+  let isEstimatedTime = false;
+  if (!anyParsed && totalDistanceMeters > 0 && totalTimeSeconds > 0) {
+    isEstimatedTime = true;
+    for (let i = 1; i < stops.length; i++) {
+      const ratio = stops[i].distanceFromPrev / totalDistanceMeters;
+      stops[i].timeFromPrevSeconds = Math.round(totalTimeSeconds * ratio);
+    }
+  }
+
   return {
-    totalDistanceMeters: parseInt(props.totalDistance || '0', 10),
-    totalTimeSeconds: parseInt(props.totalTime || '0', 10),
+    totalDistanceMeters,
+    totalTimeSeconds,
+    isEstimatedTime,
     stops
   };
 }
 
 // arriveTime 문자열을 epoch ms로 변환 (형식이 다양할 수 있어 안전하게 처리)
+// 1) ISO 8601 형식 (예: 2026-06-14T13:30:00+0900)
+// 2) 구분자 없는 형식 (예: 20260614133000, YYYYMMDDHHmmss)
 function parseArriveTime(value) {
   if (!value) return null;
+
+  // 구분자 없는 14자리 숫자 형식 우선 시도
+  const digitsMatch = String(value).match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
+  if (digitsMatch) {
+    const [, yyyy, mm, dd, hh, min, ss] = digitsMatch;
+    const t = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}`).getTime();
+    if (!isNaN(t)) return t;
+  }
+
   const t = new Date(value).getTime();
   return isNaN(t) ? null : t;
 }
