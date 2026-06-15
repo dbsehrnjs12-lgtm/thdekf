@@ -802,9 +802,14 @@
       if (idx > 0) {
         const km = (stop.distanceFromPrev / 1000).toFixed(1);
         const timeLabel = formatLegTime(stop.timeFromPrevSeconds);
-        legEl.textContent = timeLabel
-          ? `이동구간 ${km}km / ${timeLabel}`
-          : `이동구간 ${km}km`;
+        const estimateSuffix = routeData.isEstimatedTime ? ' (추정)' : '';
+        let timePart = '';
+        if (timeLabel === '1분 미만') {
+          timePart = ` · 1분 미만 소요${estimateSuffix}`;
+        } else if (timeLabel) {
+          timePart = ` · 약 ${timeLabel} 소요${estimateSuffix}`;
+        }
+        legEl.textContent = `이동구간 ${km}km${timePart}`;
       }
 
       const mapLink = document.createElement('a');
